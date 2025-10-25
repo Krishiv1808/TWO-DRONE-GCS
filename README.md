@@ -30,18 +30,19 @@ PROJECT STRUCTURE
 ------------------------------------------------------------
 two-drone-gcs/
 │
-├── static/
-│   ├── dashboard.js        (Frontend logic)
-│   └── styles.css          (UI styling)
-│
-├── templates/
-│   └── index.html          (Dashboard UI)
+|── frontend/
+|   |── frontendlauncher.py
+|   ├── static/
+│   |   ├── dashboard.js        (Frontend logic)
+│   |   └── styles.css          (UI styling)
+│   |
+|   ├── templates/
+│       └── index.html          (Dashboard UI)
 │
 ├── drone1/
 |   drone1_server.py        (Flask backend for Drone 1 - port 5000)
 ├── drone2/
 |   drone2_server.py        (Flask backend for Drone 2 - port 5001)
-├── main_dashboard.py       (Main Flask dashboard - port 5500)
 └── README.md
 
 ------------------------------------------------------------
