@@ -28,6 +28,7 @@ Web Dashboard (Flask UI - port 5500)
 ------------------------------------------------------------
 PROJECT STRUCTURE
 ------------------------------------------------------------
+```bash
 two-drone-gcs/
 │
 |── frontend/
@@ -44,6 +45,7 @@ two-drone-gcs/
 ├── drone2/
 |   drone2_server.py        (Flask backend for Drone 2 - port 5001)
 └── README.md
+```
 
 ------------------------------------------------------------
 SETUP INSTRUCTIONS
