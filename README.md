@@ -11,8 +11,7 @@ FEATURES
 - Map Integration: Leaflet maps for drone tracking.
 - Manual Control: Arm, Disarm, Takeoff, RTL, and Flight Mode switching.
 - Mission Upload: Upload .waypoints or KML files.
-- MAVLink Backend: Flask + pymavlink communication with Pixhawks.
-- Persistent USB Mapping: udev rules to fix Pixhawk serial port names.
+- MAVLink Backend: Flask + pymavlink communication with Pixhawks
 - CORS-enabled Flask backend for frontend JS requests.
 
 ------------------------------------------------------------
@@ -38,8 +37,10 @@ two-drone-gcs/
 ├── templates/
 │   └── index.html          (Dashboard UI)
 │
-├── drone1_server.py        (Flask backend for Drone 1 - port 5000)
-├── drone2_server.py        (Flask backend for Drone 2 - port 5001)
+├── drone1/
+|   drone1_server.py        (Flask backend for Drone 1 - port 5000)
+├── drone2/
+|   drone2_server.py        (Flask backend for Drone 2 - port 5001)
 ├── main_dashboard.py       (Main Flask dashboard - port 5500)
 └── README.md
 
@@ -77,7 +78,6 @@ TROUBLESHOOTING
 - 405 Error: Frontend sending GET instead of POST. Fix fetch() method.
 - No telemetry: Check Pixhawk connections and device path.
 - Dashboard not updating: Press Ctrl+Shift+R or disable browser cache.
-- Pixhawk conflict: Ensure unique udev rules for each device.
 
 ------------------------------------------------------------
 LICENSE
