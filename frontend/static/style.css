@@ -1,0 +1,59 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f8f8f8;
+}
+
+h1 {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.container {
+  display: flex;
+  justify-content: space-evenly;   /* distributes both panels evenly */
+  align-items: flex-start;
+  gap: 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  width: 100vw;                    /* full viewport width */
+}
+
+.drone-section {
+  flex: 1;                         /* both expand equally */
+  border: 2px solid #444;
+  border-radius: 10px;
+  background: #fff;
+  padding: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  height: fit-content;
+  box-sizing: border-box;
+}
+
+.map {
+  height: 400px;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+.controls {
+  margin-bottom: 20px;
+}
+
+button {
+  margin: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 5px;
+  border: none;
+  background: #007bff;
+  color: white;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background: #0056b3;
+}
+

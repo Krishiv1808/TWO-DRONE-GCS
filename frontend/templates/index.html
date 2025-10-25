@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dual Drone GCS</title>
+  <!--<link rel="stylesheet" href="./style.css">-->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+ 
+  <h1>Drone Ground Control Dashboard</h1>
+
+    <div class="container">
+        <!-- Scanning Drone -->
+        <div class="drone-section">
+            <h2>Scanning Drone</h2>
+
+            <!-- Manual Commands -->
+            <section class="controls">
+                <h3>Manual Control</h3>
+                <div>
+                    <input type="number" id="scan_throttleInput" placeholder="Throttle (µs)" min="1000" max="2000">
+                    <button onclick="sendThrottle('scan')">Send Throttle</button>
+                    <button onclick="sendThrottle('scan', true)">Kill Motors</button>
+                </div>
+                <br>
+                <div>
+                    <button onclick="sendCommand('scan','arm')">ARM</button>
+                    <button onclick="sendCommand('scan','disarm')">DISARM</button>
+                </div>
+                <br>
+                <div>
+                    <input type="number" id="scan_takeoff_height" placeholder="Altitude (m)" min="1" max="1000">
+                    <button onclick="sendTakeoff('scan')">TAKEOFF</button>
+                </div>
+                <br>
+                <h4>Set Mode</h4>
+                <div>
+                    <button onclick="sendCommand('scan','rtl')">RTL</button>
+                    <button onclick="sendCommand('scan','stabilize')">STABILIZE</button>
+                    <button onclick="sendCommand('scan','guided')">GUIDED</button>
+                    <button onclick="sendCommand('scan','auto')">AUTO</button>
+                </div>
+                <div>
+                <br><br>
+                <input type="file" id="scan_fileInput"> <h3> upload kml file here <h3>
+                <br><br>
+                </div>
+            </section>
+
+            <!-- Waypoint Uploader -->
+            <section>
+                <h3>Mission Planne</h3>
+                <div id="scan"></div>
+                <button onclick="uploadMission('scan')">Upload Mission to file step2</button>
+                <br><br>
+                <input type="file" id="scan_fileInput"> upload file here step1
+                <br><br>
+                
+                <br><br>
+                <button onclick="startMission('scan')">Start Mission</button>
+            </section>
+             <div>
+            <h2>Drone Telem Dashboard</h2>
+            <p>Status: <span class="status">N/A</span></p>
+            <p>Altitude: <span class="altitude">N/A</span></p>
+            <p>Groundspeed: <span class="speed">N/A</span></p>
+            <p>Latitude: <span class="lat">N/A</span></p>
+           <p>Longitude: <span class="lon">N/A</span></p>
+            <button onclick="updateDronePosition('scan')">Update drone position</button> 
+          </div>
+          <p id="scan_status"></p>
+          <div id="scan_map" class="map"></div>
+            
+           
+
+    
+   
+        </div>
+      
+<br>
+        <!-- Delivery Drone -->
+        <div class="drone-section">
+            <h2>Delivery Drone</h2>
+
+            <!-- Manual Commands -->
+            <section class="controls">
+                <h3>Manual Control</h3>
+                <div>
+                    <input type="number" id="del_throttleInput" placeholder="Throttle (µs)" min="1000" max="2000">
+                    <button onclick="sendThrottle('del')">Send Throttle</button>
+                    <button onclick="sendThrottle('del', true)">Kill Motors</button>
+                </div>
+                <br>
+                <div>
+                    <button onclick="sendCommand('del','arm')">ARM</button>
+                    <button onclick="sendCommand('del','disarm')">DISARM</button>
+                </div>
+                <br>
+                <div>
+                    <input type="number" id="del_takeoff_height" placeholder="Altitude (m)" min="1" max="1000">
+                    <button onclick="sendTakeoff('del')">TAKEOFF</button>
+                </div>
+                <br>
+                <h4>Set Mode</h4>
+                <div>
+                    <button onclick="sendCommand('del','rtl')">RTL</button>
+                    <button onclick="sendCommand('del','stabilize')">STABILIZE</button>
+                    <button onclick="sendCommand('del','guided')">GUIDED</button>
+                    <button onclick="sendCommand('del','auto')">AUTO</button>
+                </div>
+            </section>
+
+            <!-- Waypoint Uploader -->
+            <section>
+                <h3>Mission Planner</h3>
+                <div id="del_waypoints"></div>
+             
+                <button onclick="uploadMission('del')">Upload Mission to pixhawk</button>(step2)
+                <br><br>
+                <input type="file" id="del_fileInput"> upload file here(Step1)
+                <br><br>
+                
+                  <button onclick="startMission('del')">Start Mission</button> (step3)
+            </section>
+            
+            
+            <div>
+            <h2>Drone Telem Dahboard</h2>
+            <p>Status: <span class="status">N/A</span></p>
+            <p>Altitude: <span class="altitude">N/A</span></p>
+            <p>Groundspeed: <span class="speed">N/A</span></p>
+            <p>Latitude: <span class="lat">N/A</span></p>
+            <p>Longitude: <span class="lon">N/A</span></p>
+            
+            <button onclick="updateDronePosition('del')">Update drone position</button> 
+            </div>
+             <p id="del_status"></p>
+             <div id="del_map" class="map"></div>
+        </div>
+      </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!--<script src="./dashboard.js"></script>-->
+  
+  <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+
+</body>
+</html>
+
+
