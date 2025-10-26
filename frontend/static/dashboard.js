@@ -39,6 +39,16 @@ async function updateDronePosition(drone) {
    
 }
 
+ async function tryconnect(drone) {
+      try {
+        // call your Flask backend API
+        const res = await fetch(`${droneIPs[drone]}/tryconnect`);
+        const data = await res.json();
+        console.log('Response from Flask:', data);
+      } catch (err) {
+        console.error('Connection failed:', err);
+      }
+    }
 
 
 // --- Commands ---
