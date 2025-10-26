@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from pymavlink import mavutil
+import glob
 import time
 import os
 
@@ -8,19 +9,39 @@ app = Flask(__name__)
 CORS(app)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-
 # Connect to Pixhawk
-master = mavutil.mavlink_connection('/dev/ttyACM2', baud=115200)
-master.wait_heartbeat()
+#master = mavutil.mavlink_connection('/dev/ttyACM2', baud=115200)
+#master.wait_heartbeat()
+def find_pixhawk(baud=57600, timeout=5):
+    # Get all possible ACM devices
+    ports = glob.glob('/dev/ttyACM*')
+    if not ports:
+        print("No ACM devices found.",flush=True)
+        return None
 
-print("Connected to Pixhawk")
-master.mav.request_data_stream_send(
-    master.target_system,
-    master.target_component,
-    mavutil.mavlink.MAV_DATA_STREAM_ALL,
-    1,  # Rate (Hz)
-    1    # Start streaming
-)
+    for port in ports:
+        print(f"Trying {port}...")
+        try:
+            master = mavutil.mavlink_connection(port, baud=baud)
+            # wait for heartbeat for up to `timeout` seconds
+            master.wait_heartbeat(timeout=timeout)
+            print(f"Connected to Pixhawk on {port}!")
+            master.mav.request_data_stream_send(
+                master.target_system,
+                master.target_component,
+                mavutil.mavlink.MAV_DATA_STREAM_ALL,
+                1,  # Rate (Hz)
+                1    # Start streaming
+            )
+            return master
+        except Exception as e:
+            print(f"Failed to connect on {port}: {e}")
+            continue
+
+    print("Could not find Pixhawk on any ACM port.")
+    return None
+master = find_pixhawk()
+
 #----------------------drone location---------------------------------------------------
 @app.route('/telemetry', methods=['GET'])
 def telemetry():
@@ -288,8 +309,15 @@ def save_waypoints():
     print(f"Saved {len(waypoints)} waypoints to {filepath}")
     return jsonify({"message": "Mission file saved", "path": filepath})
 #---------------------------------------------------------------------------------------------------------------------------------------
-
-
+@app.route('/tryconnect')
+def tryconnect():
+    global master
+    master = find_pixhawk()
+    if master:
+        return jsonify({"status": "connected"})
+    else:
+        return jsonify({"status": "not found"})
+        
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  # Drone 1
+    app.run(host='0.0.0.0', port=5000)  # Drone 1 scan
 

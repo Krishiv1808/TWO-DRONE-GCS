@@ -1,7 +1,7 @@
 // Change these IPs to your two Raspberry Pis
 const droneIPs = {
-  scan: "http://127.0.0.1:5000", // Drone 1 RPi
-  del:  "http://127.0.0.1:5001"  // Drone 2 RPi
+  scan: "http://127.0.0.1:5000", // Drone 1 RPi scan
+  del:  "http://127.0.0.1:5001"  // Drone 2 RPi del
 };
 
 let scanMap = L.map('scan_map').setView([18.52, 73.85], 8);
