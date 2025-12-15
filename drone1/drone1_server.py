@@ -15,6 +15,7 @@ import pandas as pd
 from ultralytics import YOLO
 from math import cos,sin,radians,degrees
 from datetime import datetime
+from shapely.geometry import Polygon, LineString
 
 
 app = Flask(__name__)
@@ -24,6 +25,43 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Connect to Pixhawk
 #master = mavutil.mavlink_connection('/dev/ttyACM2', baud=115200)
 #master.wait_heartbeat()
+# ----------------- USER CONFIG -----------------
+#MODEL_PATH = r"D:\best.pt"
+#OUTPUT_FOLDER = "./saved_frames"
+CONF_THRESHOLD = 0.2
+RS_W = 1280
+RS_H = 720
+RS_FPS = 30
+
+LIDAR_ENABLED=True
+
+GROUND_ALT_AMSL = 0.0
+EARTH_R = 6378137.0
+
+#os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+#model = YOLO(MODEL_PATH)
+#print("Loaded YOLO model:", model.names)
+#--------------------------------------------------------------------
+try:
+    import pyrealsense2 as rs
+except:
+    print("pyrealsense2 NOT installed.")
+    
+'''pipeline = rs.pipeline()
+cfg = rs.config()
+cfg.enable_stream(rs.stream.co  lor, RS_W, RS_H, rs.format.bgr8, RS_FPS)
+pipeline.start(cfg)
+print("RealSense started.")
+
+frames = pipeline.wait_for_frames()
+intr = frames.get_color_frame().profile.as_video_stream_profile().intrinsics
+
+K = np.array([[intr.fx, 0.0, intr.ppx],
+              [0.0, intr.fy, intr.ppy],
+              [0.0, 0.0, 1.0]])
+
+print("Camera matrix:\n", K)'''
+#--------------------------------------------------------------------
 def find_pixhawk(baud=115200, timeout=5):
     # Get all possible ACM devices
     ports = glob.glob('/dev/ttyACM*')
@@ -35,17 +73,27 @@ def find_pixhawk(baud=115200, timeout=5):
         print(f"Trying {port}...")
         try:
             master = mavutil.mavlink_connection(port, baud=baud)
-            # wait for heartbeat for up to `timeout` seconds
-            master.wait_heartbeat(timeout=timeout)
-            print(f"Connected to Pixhawk on {port}!")
-            master.mav.request_data_stream_send(
-                master.target_system,
-                master.target_component,
-                mavutil.mavlink.MAV_DATA_STREAM_ALL,
-                1,  # Rate (Hz)
-                1    # Start streaming
-            )
-            return master
+            start_time = time.time()
+            heartbeat_received = False
+
+            # Loop for `timeout` seconds, non-blocking
+            while time.time() - start_time < timeout:
+                msg = master.recv_match(type='HEARTBEAT', blocking=False)
+                if msg:
+                    heartbeat_received = True
+                    master.target_system = msg.get_srcSystem()
+                    master.target_component = msg.get_srcComponent()
+                    print(f"Found Pixhawk on {port}!", flush=True)
+
+                    # Request all data streams at 1 Hz
+                    master.mav.request_data_stream_send(
+                        master.target_system,
+                        master.target_component,
+                        mavutil.mavlink.MAV_DATA_STREAM_ALL,
+                        1,
+                        1
+                    )
+                    return master
         except Exception as e:
             print(f"Failed to connect on {port}: {e}")
             continue
@@ -60,6 +108,7 @@ else:
         print({"message": "No heartbeat from Pixhawk"})
 
 print("Pixhawk search finished", flush=True)
+#---------------------------------------------------------------------------------------------------------------
 latest_status = None
 latest_telemetry = {
     "lat": None,
@@ -67,13 +116,91 @@ latest_telemetry = {
     "alt": None,
     "mode": None,
     "status": None,
-    "groundspeed": None
+    "groundspeed": None,
+    "lidar_reading":None
 }
+#lidar_reading=None
 telemetry_running = True
 telemetry_thread = None
+#-------------------------------
+camera_thread=None
+camera_running=True
+frame_lock = threading.Lock()
+latest_frame = None
+
+df_lock = threading.Lock()
+df = pd.DataFrame()
 #-----------------------------------------------------------------------------------------------------------------
+"""def camera_thread():
+    global latest_frame, df
+
+    frame_number = 0
+
+    while True:
+        frames = pipeline.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        frame = np.asanyarray(color_frame.get_data())
+
+        detections = model(frame, verbose=False)
+
+        out = frame.copy()
+
+        for det in detections[0].boxes:
+            cls = int(det.cls[0])
+            if cls != 0:
+                continue
+
+            x1,y1,x2,y2 = det.xyxy[0].tolist()
+            conf = float(det.conf[0])
+            cx = (x1+x2)/2
+            cy = (y1+y2)/2
+
+            # Telemetry check
+            if None in latest_telemetry.values():
+                print("no telem values but detection happened")
+                continue
+
+            lat0 = latest_telemetry["lat"]
+            lon0 = latest_telemetry["lon"]
+            alt0 = latest_telemetry["alt"]
+
+            roll = latest_telemetry["roll"]
+            pitch = latest_telemetry["pitch"]
+            yaw = latest_telemetry["yaw"]
+
+            ray_cam = pixel_to_camera_ray(cx, cy)
+            R = rpy_to_R_body_to_ned(roll, pitch, yaw)
+            ray_ned = R @ ray_cam
+            ray_enu = ned_to_enu(ray_ned)
+
+            dz = GROUND_ALT_AMSL - alt0
+            if abs(ray_enu[2]) < 1e-6:
+                continue
+
+            t = dz / ray_enu[2]
+            if t < 0:
+                continue
+
+            e = ray_enu[0] * t
+            n = ray_enu[1] * t
+            lat_hit, lon_hit = enu_to_latlon(lat0, lon0, e, n)
+
+            cv2.rectangle(out, (int(x1),int(y1)), (int(x2),int(y2)), (0,255,0), 2)
+            cv2.putText(out, f"{conf:.2f}", (int(x1),int(y1)-4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+
+        with frame_lock:
+            latest_frame = out.copy()
+
+        frame_number += 1
+
+
+camera_thread=threading.Thread(target=camera_thread, daemon=True)
+camera_thread.start()
+"""
+#----------------------------------------------------------------------------------------------------------
 def telemetry_listener():
-    global latest_telemetry, master,telemetry_running
+    global latest_telemetry, master,telemetry_running,lidar_reading
     while telemetry_running:
         if master is None:
             print("[ERROR] Pixhawk not connected. Retrying in 5s...")
@@ -101,6 +228,9 @@ def telemetry_listener():
 
             elif mtype == "VFR_HUD":
                 latest_telemetry["groundspeed"] = msg.groundspeed
+            elif mtype == 'DISTANCE_SENSOR' and LIDAR_ENABLED:
+                if hasattr(msg, "current_distance"):
+                    latest_telemetry["lidar_reading"]=msg.current_distance
 
         except Exception as e:
             print(f"[ERROR] Telemetry listener exception: {e}")
@@ -464,11 +594,11 @@ def generate_waypoints(coords, altitude=2, hold_time=3):
 #---------------------------------------------------------------------------------------------------------------------------------------
 @app.route("/gen_kml_mission", methods=["POST"])
 def gen_kml_mission():
-    global latest_telemtry
+    global latest_telemetry
     print("Nehhehe",flush=True)
     
-    lat = float(latest_telemtry["lat"])
-    lon = float(latest_telemtry["lon"])
+    lat = float(latest_telemetry["lat"])
+    lon = float(latest_telemetry["lon"])
 
     if lat is None or lon is None:
         return jsonify({"error": "No GPS fix from Pixhawk yet"}), 503
@@ -499,7 +629,124 @@ def gen_kml_mission():
         download_name="mission.waypoints",
         mimetype="text/plain"
     )
+#---------------------------------------------------------------------------------------------------------
+def parse_kml_polygon(kml_file):
+    tree = ET.parse(kml_file)
+    root = tree.getroot()
+    ns = {"kml": "http://www.opengis.net/kml/2.2"}
 
+    coords_text = None
+    for elem in root.findall(".//kml:Polygon/kml:outerBoundaryIs/kml:LinearRing/kml:coordinates", ns):
+        coords_text = elem.text.strip()
+        break
+
+    if not coords_text:
+        raise ValueError("No polygon coordinates found in KML")
+
+    coords = []
+    for line in coords_text.strip().split():
+        lon, lat, *_ = line.split(",")
+        coords.append((float(lat), float(lon)))
+
+    return coords
+
+
+def generate_reference_serpentine(coords, altitude=5, spacing=4, hold_time=0):
+    scale = 111000
+    pts_xy = [(lon*scale, lat*scale) for lat, lon in coords]
+    poly = Polygon(pts_xy)
+
+    minx, miny, maxx, maxy = poly.bounds
+    home_lat, home_lon = coords[0]
+    dest_lat, dest_lon = coords[2]
+
+    y = maxy - spacing
+    sweep_lines = []
+    direction = 0
+
+    while y >= miny + spacing:
+        line = LineString([(minx, y), (maxx, y)])
+        inter = poly.intersection(line)
+
+        if inter.is_empty:
+            y -= spacing
+            continue
+
+        xs, ys = inter.xy
+        pts = list(zip(xs, ys))
+        if direction % 2:
+            pts.reverse()
+
+        sweep_lines.append(pts)
+        direction += 1
+        y -= spacing
+
+    sweep_latlon = []
+    for row in sweep_lines:
+        sweep_latlon.append([(y/scale, x/scale) for x, y in row])
+
+    out = ["QGC WPL 110"]
+    seq = 0
+
+    def wp(lat, lon):
+        nonlocal seq
+        out.append(
+            f"{seq}\t0\t3\t16\t{hold_time}\t0\t0\t0\t{lat}\t{lon}\t{altitude}\t1"
+        )
+        seq += 1
+
+    out.append(f"{seq}\t1\t0\t16\t0\t0\t0\t0\t{home_lat}\t{home_lon}\t{altitude}\t1"); seq+=1
+    out.append(f"{seq}\t0\t3\t22\t0\t0\t0\t0\t{home_lat}\t{home_lon}\t{altitude}\t1"); seq+=1
+
+    for lat, lon in sweep_latlon[0]:
+        wp(lat, lon)
+
+    for i in range(1, len(sweep_latlon)):
+        prev_end = sweep_latlon[i-1][-1]
+        new_start = sweep_latlon[i][0]
+        wp(prev_end[0], new_start[1])
+        for lat, lon in sweep_latlon[i]:
+            wp(lat, lon)
+
+    out.append(f"{seq}\t0\t3\t21\t0\t0\t0\t0\t{dest_lat}\t{dest_lon}\t{altitude}\t1")
+
+    return "\n".join(out)
+
+#---------------------------------------------------------------------------------------------------------
+
+@app.route("/gen_lawnmower", methods=["POST"])
+def gen_lawnmower():
+    if "kml" not in request.files:
+        return jsonify({"error": "No KML file uploaded"}), 400
+
+    kml_file = request.files["kml"]
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".kml") as kml_tmp:
+        kml_path = kml_tmp.name
+        kml_file.save(kml_path)
+
+    try:
+        coords = parse_kml_polygon(kml_path)
+        mission_text = generate_reference_serpentine(coords)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".waypoints") as out:
+            out.write(mission_text.encode())
+            out_path = out.name
+
+        return send_file(
+            out_path,
+            as_attachment=True,
+            download_name="lawnmower.waypoints",
+            mimetype="text/plain"
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if os.path.exists(kml_path):
+            os.remove(kml_path)
+#---------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)  # Drone 1 scan
 

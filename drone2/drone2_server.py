@@ -572,11 +572,11 @@ def generate_waypoints(coords, altitude=2, hold_time=3):
 #---------------------------------------------------------------------------------------------------------------------------------------
 @app.route("/gen_kml_mission", methods=["POST"])
 def gen_kml_mission():
-    global latest_telemtry
+    global latest_telemetry
     print("Nehhehe",flush=True)
     
-    lat = float(latest_telemtry["lat"])
-    lon = float(latest_telemtry["lon"])
+    lat = float(latest_telemetry["lat"])
+    lon = float(latest_telemetry["lon"])
 
     if lat is None or lon is None:
         return jsonify({"error": "No GPS fix from Pixhawk yet"}), 503

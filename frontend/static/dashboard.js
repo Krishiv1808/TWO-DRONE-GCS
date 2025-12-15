@@ -1,7 +1,7 @@
 // Change these IPs to your two Raspberry Pis
 const droneIPs = {
-  scan: "http://100.110.74.112:5000", // Drone 1 RPi scan //arsc2//"http://100.110.74.112:5000"
-  del:  "http://100.80.4.28:5001"  // Drone 2 RPi del //arsc1 //"http://100.80.4.28:5001"
+  scan: "http://127.0.0.1:5000", // Drone 1 RPi scan //arsc2//"http://100.110.74.112:5000" jetson ip -http://100.78.63.89:5000
+  del:  "http://100.80.4.28:5001"  // Drone 2 RPi del //arsc1 //"http://100.80.4.28:5001" //
 };
 
 let scanMap = L.map('scan_map').setView([18.52, 73.85], 8);
@@ -229,6 +229,7 @@ async function getTelemetry(drone) {
         section.querySelector(".status").innerText = data.status;
         section.querySelector(".mode").innerText = data.mode;
         section.querySelector(".groundspeed").innerText = data.groundspeed;
+        section.querySelector(".lidar").innerText = data.lidar_reading;
 
     } catch (err) {
         console.error(`Telemetry fetch failed for ${drone}`);
@@ -304,6 +305,35 @@ async function generateMissionFromKML(drone) {
         window.URL.revokeObjectURL(url);
 
         console.log("Mission downloaded successfully.");
+}
+async function lawnmower(drone) {
+    const fileInput = document.getElementById(`${drone}kml_fileInput`);
+    if (!fileInput.files.length) {
+        alert("Select a KML file");
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append("kml", fileInput.files[0]);
+
+    fetch(`${droneIPs[drone]}/gen_lawnmower`, {
+        method: "POST",
+        body: formData
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Generation failed");
+        return res.blob();
+    })
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "lawnmower.waypoints";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    })
+    .catch(err => alert(err.message));
 }
 
 

@@ -47,6 +47,7 @@
                 <div>
                 <br><br>
                 <input type="file" id="scankml_fileInput"> <h3> upload kml file here <h3>
+                <button onclick="lawnmower('scan')">lawnmower</button>
                 <button onclick="generateMissionFromKML('scan')">kml to mission apangire</button>
                 <br><br>
                 </div>
@@ -72,6 +73,7 @@
             <p>Latitude: <span class="lat">N/A</span></p>
            <p>Longitude: <span class="lon">N/A</span></p>
            <p>Mode: <span class="mode">N/A</span></p>
+           <p>Lidar_Reading (cm) : <span class="lidar">N/A</span></p>
            
             <button onclick="updateDronePosition('scan')">Update drone position</button> 
           </div>
@@ -163,6 +165,7 @@
               <div>
                 <br><br>
                 <input type="file" id="delkml_fileInput"> <h3> upload kml file here <h3>
+                <button onclick="lawnmower('del')">lawnmower</button>
                 <button onclick="generateMissionFromKML('del')">kml to mission apangire</button>
                 <br><br>
                 </div>
@@ -189,6 +192,8 @@
             <p>Latitude: <span class="lat">N/A</span></p>
             <p>Longitude: <span class="lon">N/A</span></p>
             <p>Mode: <span class="mode">N/A</span></p>
+            <p>Lidar_Reading(cm): <span class="lidar">N/A</span></p>
+            
             
             <button onclick="updateDronePosition('del')">Update drone position</button> 
             </div>
