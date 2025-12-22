@@ -1,6 +1,6 @@
 // Change these IPs to your two Raspberry Pis
 const droneIPs = {
-  scan: "http://127.0.0.1:5000", // Drone 1 RPi scan //arsc2//"http://100.110.74.112:5000" jetson ip -http://100.78.63.89:5000
+  scan: "http://100.80.4.28:5000", // Drone 1 RPi scan //arsc2//"http://100.110.74.112:5000" jetson ip -http://100.78.63.89:5000
   del:  "http://100.80.4.28:5001"  // Drone 2 RPi del //arsc1 //"http://100.80.4.28:5001" //
 };
 

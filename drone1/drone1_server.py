@@ -13,9 +13,9 @@ import threading
 import numpy as np
 import pandas as pd
 from ultralytics import YOLO
-from math import cos,sin,radians,degrees
+import math
 from datetime import datetime
-from shapely.geometry import Polygon, LineString
+from shapely.geometry import Polygon, LineString,MultiLineString
 
 
 app = Flask(__name__)
@@ -630,6 +630,16 @@ def gen_kml_mission():
         mimetype="text/plain"
     )
 #---------------------------------------------------------------------------------------------------------
+def latlon_to_xy(lat, lon, lat0):
+    x = math.radians(lon) * EARTH_R * math.cos(math.radians(lat0))
+    y = math.radians(lat) * EARTH_R
+    return x, y
+
+def xy_to_latlon(x, y, lat0):
+    lat = math.degrees(y / EARTH_R)
+    lon = math.degrees(x / (EARTH_R * math.cos(math.radians(lat0))))
+    return lat, lon
+#-------------------
 def parse_kml_polygon(kml_file):
     tree = ET.parse(kml_file)
     root = tree.getroot()
@@ -651,68 +661,116 @@ def parse_kml_polygon(kml_file):
     return coords
 
 
-def generate_reference_serpentine(coords, altitude=5, spacing=4, hold_time=0):
-    scale = 111000
-    pts_xy = [(lon*scale, lat*scale) for lat, lon in coords]
-    poly = Polygon(pts_xy)
+def generate_reference_serpentine(
+    coords_latlon,
+    altitude=2.0,
+    spacing=2.0,
+    speed_mps=3.0,
+    acceptance_radius=3.0,
+    fence_margin=1.0
+):
+    global latest_telemetry
+    lat0 = sum(lat for lat, _ in coords_latlon) / len(coords_latlon)
 
-    minx, miny, maxx, maxy = poly.bounds
-    home_lat, home_lon = coords[0]
-    dest_lat, dest_lon = coords[2]
+    poly_xy = Polygon([
+        latlon_to_xy(lat, lon, lat0)
+        for lat, lon in coords_latlon
+    ])
 
+    if not poly_xy.is_valid:
+        raise ValueError("Invalid polygon geometry")
+
+    safe_poly = poly_xy.buffer(-fence_margin)
+    minx, miny, maxx, maxy = safe_poly.bounds
+
+    rows = []
     y = maxy - spacing
-    sweep_lines = []
     direction = 0
 
-    while y >= miny + spacing:
-        line = LineString([(minx, y), (maxx, y)])
-        inter = poly.intersection(line)
+    while y > miny + spacing:
+        sweep = LineString([(minx, y), (maxx, y)])
+        inter = safe_poly.intersection(sweep)
 
         if inter.is_empty:
             y -= spacing
             continue
 
-        xs, ys = inter.xy
-        pts = list(zip(xs, ys))
-        if direction % 2:
-            pts.reverse()
+        segments = []
+        if isinstance(inter, LineString):
+            segments = [inter]
+        elif isinstance(inter, MultiLineString):
+            segments = list(inter)
 
-        sweep_lines.append(pts)
-        direction += 1
+        for seg in segments:
+            xs, ys = seg.xy
+            pts = list(zip(xs, ys))
+            if direction % 2:
+                pts.reverse()
+            rows.append(pts)
+            direction += 1
+
         y -= spacing
 
-    sweep_latlon = []
-    for row in sweep_lines:
-        sweep_latlon.append([(y/scale, x/scale) for x, y in row])
+    if not rows:
+        raise RuntimeError("No scan rows generated")
 
-    out = ["QGC WPL 110"]
+    scan_rows_latlon = []
+    for row in rows:
+        scan_rows_latlon.append([
+            xy_to_latlon(x, y, lat0) for x, y in row
+        ])
+
+    mission = ["QGC WPL 110"]
     seq = 0
+    row_index_map = {}
 
-    def wp(lat, lon):
+    try:
+        home_lat = float(latest_telemetry.get("lat"))
+        home_lon = float(latest_telemetry.get("lon"))
+    except Exception:
+        print("Warning: No GPS fix, using polygon start")
+        home_lat=0
+        home_lon=0
+
+    def add_wp(cmd, lat=0, lon=0, alt=altitude, p1=0):
         nonlocal seq
-        out.append(
-            f"{seq}\t0\t3\t16\t{hold_time}\t0\t0\t0\t{lat}\t{lon}\t{altitude}\t1"
+        mission.append(
+            f"{seq}\t0\t3\t{cmd}\t{p1}\t{acceptance_radius}\t0\t0\t"
+            f"{lat:.7f}\t{lon:.7f}\t{alt:.2f}\t1"
         )
         seq += 1
 
-    out.append(f"{seq}\t1\t0\t16\t0\t0\t0\t0\t{home_lat}\t{home_lon}\t{altitude}\t1"); seq+=1
-    out.append(f"{seq}\t0\t3\t22\t0\t0\t0\t0\t{home_lat}\t{home_lon}\t{altitude}\t1"); seq+=1
+    # Home dummy
+    mission.append(
+        f"{seq}\t1\t0\t16\t0\t0\t0\t0\t"
+        f"{home_lat:.7f}\t{home_lon:.7f}\t{altitude:.2f}\t1"
+    )
+    seq += 1
 
-    for lat, lon in sweep_latlon[0]:
-        wp(lat, lon)
+    # Takeoff
+    add_wp(22, home_lat, home_lon)
 
-    for i in range(1, len(sweep_latlon)):
-        prev_end = sweep_latlon[i-1][-1]
-        new_start = sweep_latlon[i][0]
-        wp(prev_end[0], new_start[1])
-        for lat, lon in sweep_latlon[i]:
-            wp(lat, lon)
+    # Speed
+    mission.append(
+        f"{seq}\t0\t3\t178\t0\t{speed_mps}\t-1\t0\t0\t0\t0\t1"
+    )
+    seq += 1
 
-    out.append(f"{seq}\t0\t3\t21\t0\t0\t0\t0\t{dest_lat}\t{dest_lon}\t{altitude}\t1")
+    # Rows
+    for row_id, row in enumerate(scan_rows_latlon):
+        start = seq
+        for lat, lon in row:
+            add_wp(16, lat, lon)
+        row_index_map[row_id] = (start, seq - 1)
 
-    return "\n".join(out)
+    # RTL
+    mission.append(f"{seq}\t0\t3\t20\t0\t0\t0\t0\t0\t0\t0\t1")
 
-#---------------------------------------------------------------------------------------------------------
+    if seq > 700:
+        raise RuntimeError("Mission too large for Pixhawk")
+
+    return "\n".join(mission), row_index_map
+#--------------------------------------------------------------------------------------
 
 @app.route("/gen_lawnmower", methods=["POST"])
 def gen_lawnmower():
@@ -727,7 +785,7 @@ def gen_lawnmower():
 
     try:
         coords = parse_kml_polygon(kml_path)
-        mission_text = generate_reference_serpentine(coords)
+        mission_text, metadata = generate_reference_serpentine(coords)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".waypoints") as out:
             out.write(mission_text.encode())
